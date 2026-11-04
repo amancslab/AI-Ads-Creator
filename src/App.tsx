@@ -20,6 +20,11 @@ import {
   ChevronRight,
   Maximize2,
   ArrowRightLeft,
+  MapPin,
+  FolderOpen,
+  Cloud,
+  User as UserIcon,
+  LogIn,
 } from 'lucide-react';
 import {
   AdFormat,
@@ -35,7 +40,12 @@ import { BannerDisplay } from './components/BannerDisplay';
 import { BannerEditorModal } from './components/BannerEditorModal';
 import { SimulatedPreviewModal } from './components/SimulatedPreviewModal';
 import { ABComparisonView } from './components/ABComparisonView';
+import { LocalAdTargetingMap } from './components/LocalAdTargetingMap.tsx';
+import { WorkspaceHubModal } from './components/WorkspaceHubModal.tsx';
 import { exportBannerAsImage } from './utils/exportBanner';
+import { auth, db, signInWithGoogle, logOut } from './lib/firebase.ts';
+import { collection, addDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 
 export default function App() {
   // Main Ad Data state
@@ -57,7 +67,7 @@ export default function App() {
   });
 
   // UI state
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'all-sizes' | 'ab-compare'>('all-sizes');
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'all-sizes' | 'ab-compare' | 'geo-maps'>('all-sizes');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [previewScale, setPreviewScale] = useState<number>(0.75);
   const [analyzingProduct, setAnalyzingProduct] = useState<boolean>(false);
@@ -65,6 +75,70 @@ export default function App() {
   const [generatingVariations, setGeneratingVariations] = useState<boolean>(false);
   const [batchDownloading, setBatchDownloading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Google Maps Quota state (Section 8 Case A)
+  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState<boolean>(false);
+
+  // Firebase Auth & Cloud state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [savingToCloud, setSavingToCloud] = useState<boolean>(false);
+
+  // Modals state
+  const [editingFormat, setEditingFormat] = useState<AdFormat | null>(null);
+  const [showSimulator, setShowSimulator] = useState<boolean>(false);
+  const [showWorkspaceHub, setShowWorkspaceHub] = useState<boolean>(false);
+
+  // Listen to Google Maps quota exceeded event & Firebase Auth changes
+  React.useEffect(() => {
+    const onQuotaExceeded = () => setMapsQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', onQuotaExceeded);
+
+    const unsub = auth.onAuthStateChanged((u) => {
+      setCurrentUser(u);
+    });
+
+    return () => {
+      window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
+      unsub();
+    };
+  }, []);
+
+  // Save campaign to Firestore
+  const handleSaveToFirestore = async () => {
+    if (!currentUser) {
+      try {
+        const res = await signInWithGoogle();
+        setCurrentUser(res.user);
+      } catch (err: any) {
+        setStatusMessage({ type: 'error', text: 'Sign in to save campaigns to Firebase Firestore.' });
+        return;
+      }
+    }
+
+    setSavingToCloud(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Not authenticated');
+      await addDoc(collection(db, 'campaigns'), {
+        userId: user.uid,
+        brandName: adData.brandName,
+        url: adData.url,
+        headline: adData.headline,
+        subheadline: adData.subheadline,
+        callToAction: adData.callToAction,
+        badge: adData.badge,
+        primaryColor: adData.primaryColor,
+        imageUrl: adData.imageUrl,
+        createdAt: new Date().toISOString(),
+      });
+      setStatusMessage({ type: 'success', text: `Saved campaign "${adData.brandName}" to Firebase Firestore!` });
+      confetti({ particleCount: 30, spread: 50 });
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: `Failed saving to Firestore: ${err.message}` });
+    } finally {
+      setSavingToCloud(false);
+    }
+  };
 
   // Generate A/B Variations handler
   const handleGenerateVariations = async () => {
@@ -148,10 +222,6 @@ export default function App() {
       setGeneratingVariations(false);
     }
   };
-
-  // Modals state
-  const [editingFormat, setEditingFormat] = useState<AdFormat | null>(null);
-  const [showSimulator, setShowSimulator] = useState<boolean>(false);
 
   // Quick preset loader
   const handleLoadPreset = (presetId: string) => {
@@ -316,6 +386,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+      {/* Google Maps Platform Quota Notice (Section 8 Case A) */}
+      {mapsQuotaExceeded && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -337,7 +425,7 @@ export default function App() {
 
         {/* Global Action Affordances */}
         <div className="flex items-center gap-2.5">
-          {/* View Mode Toggle: All Sizes vs A/B Comparison */}
+          {/* View Mode Toggle: All Sizes vs A/B Comparison vs Geo-Targeting Map */}
           <div className="hidden md:flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
             <button
               onClick={() => setActiveWorkspaceTab('all-sizes')}
@@ -360,27 +448,82 @@ export default function App() {
             >
               <ArrowRightLeft className="w-3.5 h-3.5 text-amber-300" />
               <span>A/B Variations</span>
-              <span className="bg-amber-400/25 text-amber-200 text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase">
-                Side-by-Side
-              </span>
+            </button>
+            <button
+              onClick={() => setActiveWorkspaceTab('geo-maps')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeWorkspaceTab === 'geo-maps'
+                  ? 'bg-emerald-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Geo-Targeting Map</span>
             </button>
           </div>
 
+          {/* Google Workspace Hub Button */}
+          <button
+            onClick={() => setShowWorkspaceHub(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-semibold rounded-lg border border-indigo-500/30 transition-colors shadow-sm"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Workspace Hub</span>
+          </button>
+
+          {/* Save to Firestore Cloud */}
+          <button
+            onClick={handleSaveToFirestore}
+            disabled={savingToCloud}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors shadow-sm"
+          >
+            <Cloud className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden sm:inline">{savingToCloud ? 'Saving...' : 'Save to Cloud'}</span>
+          </button>
+
+          {/* In-Market Simulator */}
           <button
             onClick={() => setShowSimulator(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors shadow-sm"
           >
             <Eye className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden sm:inline">In-Market Simulator</span>
+            <span className="hidden sm:inline">Simulator</span>
           </button>
 
+          {/* User Sign In / Profile */}
+          {currentUser ? (
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-xl">
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt={currentUser.displayName || ''}
+                  className="w-5 h-5 rounded-full"
+                />
+              ) : (
+                <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+              )}
+              <span className="text-[11px] font-semibold text-slate-300 hidden md:inline max-w-[90px] truncate">
+                {currentUser.displayName || currentUser.email}
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={() => signInWithGoogle().then((r) => setCurrentUser(r.user)).catch(() => {})}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-slate-900 font-bold text-xs rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
+
+          {/* Export All PNGs */}
           <button
             onClick={handleDownloadAll}
             disabled={batchDownloading}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-md shadow-sky-500/25 transition-all"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{batchDownloading ? 'Exporting All...' : 'Export Suite (PNG)'}</span>
+            <span>{batchDownloading ? 'Exporting...' : 'Export (PNG)'}</span>
           </button>
         </div>
       </header>
@@ -762,8 +905,20 @@ export default function App() {
             </div>
           )}
 
-          {/* Conditional Workspace Rendering: Side-by-Side A/B Testing vs 12 Standard Sizes */}
-          {activeWorkspaceTab === 'ab-compare' ? (
+          {/* Conditional Workspace Rendering: Side-by-Side A/B Testing vs 12 Standard Sizes vs Geo-Targeting Map */}
+          {activeWorkspaceTab === 'geo-maps' ? (
+            <LocalAdTargetingMap
+              onApplyLocationBadge={(badge) => {
+                setAdData((prev) => ({ ...prev, badge }));
+                setStatusMessage({
+                  type: 'success',
+                  text: `Applied geo-location badge "${badge}" across all banner formats!`,
+                });
+                confetti({ particleCount: 30, spread: 50 });
+              }}
+              activeBadge={adData.badge}
+            />
+          ) : activeWorkspaceTab === 'ab-compare' ? (
             <ABComparisonView
               adData={adData}
               onUpdateAdData={(upd) => setAdData((prev) => ({ ...prev, ...upd }))}
@@ -868,6 +1023,18 @@ export default function App() {
         <SimulatedPreviewModal
           adData={adData}
           onClose={() => setShowSimulator(false)}
+        />
+      )}
+
+      {/* Google Workspace Integration Hub Modal */}
+      {showWorkspaceHub && (
+        <WorkspaceHubModal
+          adData={adData}
+          onClose={() => setShowWorkspaceHub(false)}
+          onApplyDriveImage={(imageUrl) => {
+            setAdData((prev) => ({ ...prev, imageUrl }));
+            setStatusMessage({ type: 'success', text: 'Imported product image from Google Drive!' });
+          }}
         />
       )}
     </div>

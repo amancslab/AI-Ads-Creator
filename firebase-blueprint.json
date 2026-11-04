@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "user_profiles": {
+      "title": "User Profile",
+      "description": "User profile stored upon Google Sign-In",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "saved_campaigns": {
+      "title": "Saved Banner Campaign",
+      "description": "Saved marketing campaign with creative assets and variations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "brandName": { "type": "string", "maxLength": 128 },
+        "url": { "type": "string", "maxLength": 1024 },
+        "headline": { "type": "string", "maxLength": 512 },
+        "subheadline": { "type": "string", "maxLength": 1024 },
+        "callToAction": { "type": "string", "maxLength": 128 },
+        "badge": { "type": "string", "maxLength": 128 },
+        "primaryColor": { "type": "string", "maxLength": 32 },
+        "imageUrl": { "type": "string", "maxLength": 10000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "brandName", "headline"]
+    },
+    "ad_locations": {
+      "title": "Target Ad Location",
+      "description": "Storefront or geo-targeted location for localized banner campaigns",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "campaignId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "address": { "type": "string", "maxLength": 256 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "radiusKm": { "type": "number" }
+      },
+      "required": ["userId", "name", "lat", "lng"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user_profiles",
+      "description": "User account documents keyed by auth UID"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "saved_campaigns",
+      "description": "User created ad campaigns"
+    },
+    "/locations/{locationId}": {
+      "schema": "ad_locations",
+      "description": "Geo-targeted locations for ad display"
+    }
+  }
+}
