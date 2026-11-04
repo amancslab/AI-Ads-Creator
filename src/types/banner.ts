@@ -156,6 +156,19 @@ export type SupportedModel = 'gemini-3-pro-image-preview' | 'gemini-nano-banana-
 
 export type AdLayoutStyle = 'editorial-split' | 'hero-gradient' | 'minimalist-dark' | 'glass-card' | 'bold-retail';
 
+export interface AdVariant {
+  id: 'variant-a' | 'variant-b';
+  label: string;
+  headline: string;
+  subheadline: string;
+  callToAction: string;
+  badge: string;
+  primaryColor: string;
+  strategyHook: string;
+  predictedCtr?: number;
+  rationale?: string;
+}
+
 export interface BannerAdData {
   brandName: string;
   url: string;
@@ -171,6 +184,9 @@ export interface BannerAdData {
   activeImageSize: SupportedImageSize;
   activeModel: SupportedModel;
   imagePrompt: string;
+  variantA?: AdVariant;
+  variantB?: AdVariant;
+  comparisonAdvice?: string;
 }
 
 export interface PresetProduct {

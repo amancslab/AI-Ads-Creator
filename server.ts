@@ -117,6 +117,110 @@ Extract and structure the marketing intelligence:
   }
 });
 
+// Endpoint: Generate two high-converting variations for A/B testing
+app.post('/api/generate-variations', async (req, res) => {
+  try {
+    const { brandName, url, description, primaryColor = '#0EA5E9' } = req.body;
+
+    const prompt = `You are a world-class programmatic advertising strategist and conversion rate optimization (CRO) expert.
+Generate TWO distinct, high-performing variations (Variant A and Variant B) for an A/B split-test ad campaign.
+
+Brand / Product: ${brandName || 'Modern Product'}
+Landing URL: ${url || 'https://example.com'}
+Product Details: ${description || 'Cutting edge product with premium features'}
+Current Base Color: ${primaryColor}
+
+Strategy requirement for the two variations:
+- Variant A (Direct Value & Feature Dominance): Focus on the core practical benefit, quality, and effortless value. Uses a sleek, high-trust accent color (e.g. vibrant blue, indigo, or emerald).
+- Variant B (Urgency, Social Proof & High-Action Contrast): Focus on scarcity/FOMO, social proof rating, or risk-free guarantee. Uses a high-contrast attention-grabbing action color (e.g. warm amber-orange #F59E0B, energetic crimson/rose #F43F5E, or electric violet #8B5CF6) that contrasts distinctly with Variant A.
+
+For each variant produce:
+- Headline (punchy, max 6-8 words)
+- Subheadline (benefit-rich, max 10-14 words)
+- CTA button text (e.g. "Claim 25% Off Today" vs "Try Risk-Free 30 Days")
+- Badge text (e.g. "★ 4.9 (2,400+ REVIEWS)" vs "LIMITED TIME OFFER")
+- Hex color for CTA/accent
+- Strategy hook label (e.g. "Value Proposition & Trust" vs "Urgency & Loss Aversion")
+- Predicted relative CTR % (e.g. 3.4% and 4.1%)
+- Marketing rationale explaining why this variation will perform well in testing`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: 'You are an expert ad creative director specializing in A/B split testing and performance marketing.',
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            variantA: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                headline: { type: Type.STRING },
+                subheadline: { type: Type.STRING },
+                callToAction: { type: Type.STRING },
+                badge: { type: Type.STRING },
+                primaryColor: { type: Type.STRING },
+                strategyHook: { type: Type.STRING },
+                predictedCtr: { type: Type.NUMBER },
+                rationale: { type: Type.STRING },
+              },
+              required: [
+                'label',
+                'headline',
+                'subheadline',
+                'callToAction',
+                'badge',
+                'primaryColor',
+                'strategyHook',
+                'predictedCtr',
+                'rationale',
+              ],
+            },
+            variantB: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                headline: { type: Type.STRING },
+                subheadline: { type: Type.STRING },
+                callToAction: { type: Type.STRING },
+                badge: { type: Type.STRING },
+                primaryColor: { type: Type.STRING },
+                strategyHook: { type: Type.STRING },
+                predictedCtr: { type: Type.NUMBER },
+                rationale: { type: Type.STRING },
+              },
+              required: [
+                'label',
+                'headline',
+                'subheadline',
+                'callToAction',
+                'badge',
+                'primaryColor',
+                'strategyHook',
+                'predictedCtr',
+                'rationale',
+              ],
+            },
+            comparisonAdvice: { type: Type.STRING },
+          },
+          required: ['variantA', 'variantB', 'comparisonAdvice'],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error('Error generating A/B variations:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to generate variations.',
+      details: error.toString(),
+    });
+  }
+});
+
 // Endpoint: Generate high-quality image with gemini-3-pro-image-preview or gemini-nano-banana-2.1
 app.post('/api/generate-image', async (req, res) => {
   try {
